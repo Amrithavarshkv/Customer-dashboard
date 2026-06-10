@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart People Counter</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+/* ===== GLOBAL ===== */
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:'Segoe UI',sans-serif;
+}
+
+body{
+    min-height:100vh;
+    overflow-x:hidden;
+    padding:30px;
+
+    background:linear-gradient(-45deg,#0f172a,#1e1b4b,#312e81,#0f766e,#0ea5e9);
+    background-size:400% 400%;
+    animation:bgMove 15s ease infinite;
+}
+
+@keyframes bgMove{
+    0%{background-position:0% 50%;}
+    50%{background-position:100% 50%;}
+    100%{background-position:0% 50%;}
+}
+
+/* ===== GLOW LIGHTS ===== */
+body::before{
+    content:'';
+    position:fixed;
+    width:700px;
+    height:700px;
+    background:#00e5ff;
+    border-radius:50%;
+    filter:blur(220px);
+    top:-250px;
+    left:-250px;
+    opacity:.25;
+    z-index:-2;
+}
+
+body::after{
+    content:'';
+    position:fixed;
+    width:600px;
+    height:600px;
+    background:#ff00ff;
+    border-radius:50%;
+    filter:blur(220px);
+    bottom:-200px;
+    right:-200px;
+    opacity:.18;
+    z-index:-2;
+}
+
+/* ===== FLOATING PARTICLES ===== */
+.particles{
+    position:fixed;
+    inset:0;
+    z-index:-1;
+    pointer-events:none;
+}
+
+.particles::before{
+    content:'';
+    position:absolute;
+    inset:0;
+    background-image:radial-gradient(rgba(255,255,255,.3) 1px,transparent 1px);
+    background-size:60px 60px;
+    animation:float 30s linear infinite;
+}
+
+@keyframes float{
+    from{transform:translateY(0);}
+    to{transform:translateY(-120px);}
+}
+
+/* ===== CONTAINER ===== */
+.container{
+    max-width:1200px;
+    margin:auto;
+}
+
+/* ===== HEADER ===== */
+.header{
+    text-align:center;
+    color:white;
+    margin-bottom:35px;
+}
+
+.header h1{
+    font-size:3rem;
+    font-weight:800;
+    text-shadow:0 0 25px #00e5ff;
+}
+
+.header p{
+    opacity:.8;
+    margin-top:10px;
+}
+
+/* ===== CARDS ===== */
+.cards{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+    gap:25px;
+}
+
+.card{
+    background:rgba(255,255,255,0.08);
+    backdrop-filter:blur(25px);
+    border:1px solid rgba(255,255,255,0.2);
+    border-radius:25px;
+    padding:30px;
+    text-align:center;
+    color:white;
+    transition:.3s;
+    box-shadow:0 10px 35px rgba(0,0,0,.3);
+}
+
+.card:hover{
+    transform:translateY(-8px);
+    box-shadow:0 0 30px rgba(0,229,255,.4);
+}
+
+.icon{
+    font-size:55px;
+    margin-bottom:10px;
+}
+
+.value{
+    font-size:3.5rem;
+    font-weight:bold;
+    color:#00e5ff;
+}
+
+.label{
+    opacity:.8;
+}
+
+/* ===== CROWD LEVEL ===== */
+#crowdLevel{
+    font-size:2.2rem;
+    font-weight:bold;
+}
+
+/* ===== CHART ===== */
+.chart-card{
+    margin-top:25px;
+    background:rgba(255,255,255,0.08);
+    backdrop-filter:blur(25px);
+    border-radius:25px;
+    padding:25px;
+    border:1px solid rgba(255,255,255,.2);
+}
+
+.chart-card h2{
+    text-align:center;
+    color:white;
+    margin-bottom:20px;
+}
+
+.chart-container{
+    height:420px;
+}
+
+/* ===== BUTTON ===== */
+button{
+    padding:15px 35px;
+    border:none;
+    border-radius:50px;
+    font-size:18px;
+    cursor:pointer;
+    color:white;
+    font-weight:bold;
+    background:linear-gradient(45deg,#00e5ff,#7c3aed,#ff00ff);
+    transition:.3s;
+}
+
+button:hover{
+    transform:scale(1.05);
+    box-shadow:0 0 25px #00e5ff;
+}
+
+/* ===== STATUS ===== */
+.status{
+    text-align:center;
+    margin-top:20px;
+    color:white;
+}
+
+.online{
+    color:#00ff88;
+    text-shadow:0 0 10px #00ff88;
+}
+
+.offline{
+    color:#ff4d4d;
+    text-shadow:0 0 10px #ff4d4d;
+}
+
+/* ===== FOOTER ===== */
+.footer{
+    text-align:center;
+    margin-top:20px;
+    color:white;
+    opacity:.7;
+}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:768px){
+    .header h1{font-size:2rem;}
+    .value{font-size:2.5rem;}
+    .chart-container{height:300px;}
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="particles"></div>
+
+<div class="container">
+
+<div class="header">
+    <h1>🚪 Smart People Counter</h1>
+    <p>Real-Time Occupancy Monitoring System</p>
+</div>
+
+<div class="cards">
+
+    <div class="card">
+        <div class="icon">👥</div>
+        <div id="currentCount" class="value">0</div>
+        <div class="label">Current People</div>
+    </div>
+
+    <div class="card">
+        <div class="icon">🚶</div>
+        <div id="totalEntered" class="value">0</div>
+        <div class="label">Total Entered</div>
+    </div>
+
+    <div class="card">
+        <div class="icon">📊</div>
+        <div id="crowdLevel" class="value">LOW 🟢</div>
+        <div class="label">Crowd Level</div>
+    </div>
+
+</div>
+
+<div class="chart-card">
+    <h2>📈 Occupancy Trend</h2>
+    <div class="chart-container">
+        <canvas id="occupancyChart"></canvas>
+    </div>
+</div>
+
+<div style="text-align:center;margin-top:25px;">
+    <button onclick="connectSerial()">🔌 Connect Arduino</button>
+</div>
+
+<div class="status">
+    Status:
+    <span id="status" class="offline">Disconnected</span>
+</div>
+
+<div class="footer">
+    Live IR Sensor Monitoring ✨
+</div>
+
+</div>
+
+<script>
+
+let port;
+let reader;
+let chart;
+let chartPoints = [];
+let latestCurrentCount = 0;
+
+/* ===== CHART ===== */
+window.onload = () => {
+    const ctx = document.getElementById("occupancyChart").getContext("2d");
+
+    chart = new Chart(ctx,{
+        type:'line',
+        data:{labels:[],datasets:[{
+            label:'People Inside',
+            data:[],
+            borderColor:'#00e5ff',
+            backgroundColor:'rgba(0,229,255,0.2)',
+            fill:true,
+            tension:0.4
+        }]},
+        options:{
+            responsive:true,
+            maintainAspectRatio:false,
+            animation:false,
+            scales:{
+                x:{ticks:{color:'white'}},
+                y:{ticks:{color:'white'}}
+            }
+        }
+    });
+};
+
+/* ===== CROWD LEVEL ===== */
+function updateCrowdLevel(count){
+    const el = document.getElementById("crowdLevel");
+
+    if(count <= 5){
+        el.textContent = "LOW 🟢";
+        el.style.color = "#00ff88";
+    }
+    else if(count <= 15){
+        el.textContent = "MEDIUM 🟡";
+        el.style.color = "#ffd700";
+    }
+    else{
+        el.textContent = "HIGH 🔴";
+        el.style.color = "#ff4d4d";
+    }
+}
+
+/* ===== SERIAL ===== */
+async function connectSerial(){
+    try{
+        port = await navigator.serial.requestPort();
+        await port.open({baudRate:115200});
+
+        document.getElementById("status").textContent="Connected";
+        document.getElementById("status").className="online";
+
+        readSerial();
+
+    }catch(e){
+        document.getElementById("status").textContent="Failed";
+        document.getElementById("status").className="offline";
+    }
+}
+
+async function readSerial(){
+    const decoder = new TextDecoderStream();
+    port.readable.pipeTo(decoder.writable);
+    reader = decoder.readable.getReader();
+
+    let buffer="";
+
+    while(true){
+        const {value,done}=await reader.read();
+        if(done) break;
+
+        buffer += value;
+        let lines = buffer.split("\n");
+        buffer = lines.pop();
+
+        for(let line of lines){
+            parseData(line.trim());
+        }
+    }
+}
+
+/* ===== DATA PARSE ===== */
+function parseData(text){
+
+    const match = text.match(/Current Count:\s*(\d+).*Total Entered:\s*(\d+)/);
+
+    if(match){
+        latestCurrentCount = Number(match[1]);
+        const entered = Number(match[2]);
+
+        document.getElementById("currentCount").textContent = latestCurrentCount;
+        document.getElementById("totalEntered").textContent = entered;
+
+        updateCrowdLevel(latestCurrentCount);
+    }
+}
+
+/* ===== CHART UPDATE ===== */
+setInterval(()=>{
+    const now = Date.now();
+
+    chartPoints.push({time:now,value:latestCurrentCount});
+
+    chartPoints = chartPoints.filter(p => now - p.time <= 20000);
+
+    chart.data.labels = chartPoints.map(p =>
+        new Date(p.time).toLocaleTimeString()
+    );
+
+    chart.data.datasets[0].data = chartPoints.map(p=>p.value);
+
+    chart.update();
+},1000);
+
+</script>
+
+</body>
+</html>
