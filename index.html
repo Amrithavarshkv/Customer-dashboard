@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Smart People Counter Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:'Segoe UI',sans-serif;
+}
+
+body{
+    min-height:100vh;
+    background:linear-gradient(135deg,#0f172a,#1e293b,#312e81);
+    padding:30px;
+    overflow-x:hidden;
+}
+
+body::before{
+    content:'';
+    position:fixed;
+    width:500px;
+    height:500px;
+    background:#00d4ff;
+    filter:blur(180px);
+    opacity:.2;
+    top:-150px;
+    left:-100px;
+    z-index:-1;
+}
+
+body::after{
+    content:'';
+    position:fixed;
+    width:450px;
+    height:450px;
+    background:#ff00ff;
+    filter:blur(180px);
+    opacity:.15;
+    bottom:-150px;
+    right:-100px;
+    z-index:-1;
+}
+
+.container{
+    max-width:1200px;
+    margin:auto;
+}
+
+.header{
+    text-align:center;
+    color:white;
+    margin-bottom:30px;
+}
+
+.header h1{
+    font-size:3rem;
+}
+
+.header p{
+    opacity:.8;
+    margin-top:10px;
+}
+
+.cards{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+    gap:25px;
+}
+
+.card{
+    background:rgba(255,255,255,0.08);
+    backdrop-filter:blur(20px);
+    border:1px solid rgba(255,255,255,0.15);
+    border-radius:25px;
+    padding:35px;
+    text-align:center;
+    color:white;
+    box-shadow:0 8px 32px rgba(0,0,0,.3);
+    transition:.3s;
+}
+
+.card:hover{
+    transform:translateY(-8px);
+}
+
+.icon{
+    font-size:60px;
+    margin-bottom:15px;
+}
+
+.value{
+    font-size:4rem;
+    font-weight:bold;
+    color:#00e5ff;
+    transition:.3s;
+}
+
+.label{
+    font-size:1.1rem;
+    opacity:.8;
+}
+
+.chart-card{
+    margin-top:25px;
+    background:rgba(255,255,255,0.08);
+    backdrop-filter:blur(20px);
+    border:1px solid rgba(255,255,255,0.15);
+    border-radius:25px;
+    padding:25px;
+    box-shadow:0 8px 32px rgba(0,0,0,.3);
+}
+
+.chart-card h2{
+    text-align:center;
+    color:white;
+    margin-bottom:20px;
+}
+
+.chart-container{
+    position:relative;
+    height:420px;
+}
+
+.controls{
+    text-align:center;
+    margin-top:25px;
+}
+
+button{
+    padding:15px 35px;
+    border:none;
+    border-radius:50px;
+    font-size:18px;
+    cursor:pointer;
+    color:white;
+    font-weight:bold;
+    background:linear-gradient(45deg,#00e5ff,#7c3aed);
+    transition:.3s;
+}
+
+button:hover{
+    transform:scale(1.05);
+}
+
+.status{
+    text-align:center;
+    margin-top:20px;
+    color:white;
+}
+
+.online{
+    color:#00ff88;
+    font-weight:bold;
+}
+
+.offline{
+    color:#ff4d4d;
+    font-weight:bold;
+}
+
+.footer{
+    text-align:center;
+    margin-top:20px;
+    color:white;
+    opacity:.7;
+}
+
+@media(max-width:768px){
+
+    .header h1{
+        font-size:2rem;
+    }
+
+    .value{
+        font-size:3rem;
+    }
+
+    .chart-container{
+        height:300px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="header">
+        <h1>🚪 Smart People Counter</h1>
+        <p>Real-Time Occupancy Monitoring Dashboard</p>
+    </div>
+
+    <div class="cards">
+
+        <div class="card">
+            <div class="icon">👥</div>
+            <div id="currentCount" class="value">0</div>
+            <div class="label">Current People Inside</div>
+        </div>
+
+        <div class="card">
+            <div class="icon">🚶</div>
+            <div id="totalEntered" class="value">0</div>
+            <div class="label">Total Entered</div>
+        </div>
+
+    </div>
+
+    <div class="chart-card">
+        <h2>📈 Occupancy Trend (Last 20 Seconds)</h2>
+
+        <div class="chart-container">
+            <canvas id="occupancyChart"></canvas>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button onclick="connectSerial()">
+            Connect Arduino
+        </button>
+    </div>
+
+    <div class="status">
+        Status:
+        <span id="status" class="offline">
+            Disconnected
+        </span>
+    </div>
+
+    <div class="footer">
+        Live IR Sensor Monitoring
+    </div>
+
+</div>
+
+<script>
+
+let port;
+let reader;
+
+let latestCurrentCount = 0;
+
+let chart;
+let chartPoints = [];
+
+window.onload = () => {
+
+    const ctx =
+        document.getElementById("occupancyChart")
+        .getContext("2d");
+
+    chart = new Chart(ctx,{
+        type:'line',
+        data:{
+            labels:[],
+            datasets:[{
+                label:'People Inside',
+                data:[],
+                borderColor:'#00e5ff',
+                backgroundColor:'rgba(0,229,255,0.15)',
+                fill:true,
+                tension:0.4,
+                borderWidth:3,
+                pointRadius:4,
+                pointBackgroundColor:'#00ff88'
+            }]
+        },
+        options:{
+            responsive:true,
+            maintainAspectRatio:false,
+            animation:false,
+
+            plugins:{
+                legend:{
+                    labels:{
+                        color:'white'
+                    }
+                }
+            },
+
+            scales:{
+                x:{
+                    ticks:{
+                        color:'white'
+                    },
+                    grid:{
+                        color:'rgba(255,255,255,0.1)'
+                    }
+                },
+                y:{
+                    beginAtZero:true,
+                    ticks:{
+                        color:'white',
+                        stepSize:1
+                    },
+                    grid:{
+                        color:'rgba(255,255,255,0.1)'
+                    }
+                }
+            }
+        }
+    });
+};
+
+async function connectSerial(){
+
+    try{
+
+        port = await navigator.serial.requestPort();
+
+        await port.open({
+            baudRate:115200
+        });
+
+        document.getElementById("status").textContent =
+            "Connected";
+
+        document.getElementById("status").className =
+            "online";
+
+        readSerial();
+
+    }catch(err){
+
+        console.error(err);
+
+        document.getElementById("status").textContent =
+            "Connection Failed";
+
+        document.getElementById("status").className =
+            "offline";
+    }
+}
+
+async function readSerial(){
+
+    const decoder = new TextDecoderStream();
+
+    port.readable.pipeTo(decoder.writable);
+
+    reader = decoder.readable.getReader();
+
+    let buffer = "";
+
+    while(true){
+
+        const {value,done} = await reader.read();
+
+        if(done) break;
+
+        buffer += value;
+
+        const lines = buffer.split("\n");
+
+        buffer = lines.pop();
+
+        for(const line of lines){
+
+            parseData(line.trim());
+        }
+    }
+}
+
+function parseData(text){
+
+    const match =
+        text.match(
+            /Current Count:\s*(\d+).*Total Entered:\s*(\d+)/
+        );
+
+    if(match){
+
+        latestCurrentCount = Number(match[1]);
+        const entered = Number(match[2]);
+
+        animateValue(
+            document.getElementById("currentCount"),
+            latestCurrentCount
+        );
+
+        animateValue(
+            document.getElementById("totalEntered"),
+            entered
+        );
+    }
+}
+
+function animateValue(element,newValue){
+
+    if(element.textContent == newValue) return;
+
+    element.style.transform = "scale(1.15)";
+    element.style.color = "#00ff88";
+
+    setTimeout(()=>{
+
+        element.textContent = newValue;
+        element.style.transform = "scale(1)";
+        element.style.color = "#00e5ff";
+
+    },150);
+}
+
+function updateChart(){
+
+    const now = Date.now();
+
+    chartPoints.push({
+        time: now,
+        value: latestCurrentCount
+    });
+
+    // Keep only last 20 seconds
+    chartPoints = chartPoints.filter(
+        point => (now - point.time) <= 20000
+    );
+
+    chart.data.labels = chartPoints.map(point => {
+
+        const d = new Date(point.time);
+
+        return d.toLocaleTimeString([],{
+            minute:'2-digit',
+            second:'2-digit'
+        });
+
+    });
+
+    chart.data.datasets[0].data =
+        chartPoints.map(point => point.value);
+
+    chart.update('none');
+}
+
+// Update graph every second
+setInterval(updateChart,1000);
+
+</script>
+
+</body>
+</html>
